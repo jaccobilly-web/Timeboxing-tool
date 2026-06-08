@@ -93,8 +93,11 @@ export function recalculateSchedule(state: DayState, fromTime: Date): DayState {
       continue;
     }
 
-    const scheduledStart = new Date(cursor);
-    const scheduledEnd = new Date(cursor.getTime() + task.estimatedMinutes * 60_000);
+    // manualStart pins the task to a specific wall-clock time; auto tasks use cursor
+    const scheduledStart = task.manualStart
+      ? parseDayTime(state.date, task.manualStart)
+      : new Date(cursor);
+    const scheduledEnd = new Date(scheduledStart.getTime() + task.estimatedMinutes * 60_000);
 
     if (scheduledEnd > dayEndTime) {
       overflowing = true;

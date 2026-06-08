@@ -67,8 +67,21 @@ export function useDayState(now: Date) {
       const task = prev.tasks.find(t => t.id === taskId);
       if (!task || task.status !== 'active') return prev;
 
+      // Subtract all paused time from actual elapsed
+      const totalPausedMs = task.totalPausedMs ?? 0;
+      const currentPauseMs =
+        task.isPaused && task.pausedAt
+          ? completionTime.getTime() - new Date(task.pausedAt).getTime()
+          : 0;
+
       const actualMinutes = task.startedAt
-        ? Math.max(1, Math.round((completionTime.getTime() - new Date(task.startedAt).getTime()) / 60_000))
+        ? Math.max(
+            1,
+            Math.round(
+              (completionTime.getTime() - new Date(task.startedAt).getTime() - totalPausedMs - currentPauseMs) /
+                60_000
+            )
+          )
         : task.estimatedMinutes;
 
       const newTasks = prev.tasks.map(t =>
@@ -78,11 +91,52 @@ export function useDayState(now: Date) {
               status: 'complete' as const,
               actualMinutes,
               completedAt: completionTime.toISOString(),
+              isPaused: false,
+              pausedAt: undefined,
             }
           : t
       );
       const draft = { ...prev, tasks: newTasks };
       return recalculateSchedule(draft, completionTime);
+    });
+  }, []);
+
+  const pauseTask = useCallback((taskId: string) => {
+    setState(prev => ({
+      ...prev,
+      tasks: prev.tasks.map(t =>
+        t.id === taskId && t.status === 'active' && !t.isPaused
+          ? { ...t, isPaused: true, pausedAt: new Date().toISOString() }
+          : t
+      ),
+    }));
+  }, []);
+
+  const resumeTask = useCallback((taskId: string) => {
+    setState(prev => ({
+      ...prev,
+      tasks: prev.tasks.map(t => {
+        if (t.id !== taskId || !t.isPaused || !t.pausedAt) return t;
+        const pauseDuration = Date.now() - new Date(t.pausedAt).getTime();
+        return {
+          ...t,
+          isPaused: false,
+          pausedAt: undefined,
+          totalPausedMs: (t.totalPausedMs ?? 0) + pauseDuration,
+        };
+      }),
+    }));
+  }, []);
+
+  const updateTaskStart = useCallback((taskId: string, time: string | undefined) => {
+    setState(prev => {
+      const now = nowRef.current;
+      const newTasks = prev.tasks.map(t =>
+        t.id === taskId ? { ...t, manualStart: time } : t
+      );
+      const draft = { ...prev, tasks: newTasks };
+      const fromTime = getPendingFromTime(draft, now);
+      return recalculateSchedule(draft, fromTime);
     });
   }, []);
 
@@ -189,6 +243,8 @@ export function useDayState(now: Date) {
     addTask,
     startTask,
     completeTask,
+    pauseTask,
+    resumeTask,
     rescheduleNow,
     removeTask,
     reorderAgendaTasks,
@@ -197,5 +253,6 @@ export function useDayState(now: Date) {
     updateDaySettings,
     updatePomodoroConfig,
     updateTaskTitle,
+    updateTaskStart,
   };
 }

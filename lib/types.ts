@@ -8,6 +8,10 @@ export interface Task {
   scheduledStart?: string;   // ISO string
   scheduledEnd?: string;     // ISO string
   startedAt?: string;        // ISO string — when user clicked Start
+  manualStart?: string;      // HH:MM — user-pinned start time, overrides auto-calc
+  isPaused?: boolean;
+  pausedAt?: string;         // ISO string — when the current pause began
+  totalPausedMs?: number;    // accumulated paused milliseconds across all pauses
   status: TaskStatus;
   completedAt?: string;      // ISO string
   notes?: string;

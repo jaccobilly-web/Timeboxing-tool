@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Task } from '@/lib/types';
 import { formatHHMM, formatDuration, formatElapsed, formatDelta } from '@/lib/scheduler';
 
@@ -9,9 +9,12 @@ interface TaskItemProps {
   now: Date;
   onStart?: () => void;
   onComplete?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
   onReschedule?: () => void;
   onRemove?: () => void;
   onMoveToOverflow?: () => void;
+  onSetStartTime?: (time: string | undefined) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
 }
@@ -21,58 +24,94 @@ export default function TaskItem({
   now,
   onStart,
   onComplete,
+  onPause,
+  onResume,
   onReschedule,
   onRemove,
   onMoveToOverflow,
+  onSetStartTime,
   dragHandleProps,
   isDragging,
 }: TaskItemProps) {
   const [expanded, setExpanded] = useState(false);
+  const [editingTime, setEditingTime] = useState(false);
+  const [timeInput, setTimeInput] = useState('');
 
   const scheduledStart = task.scheduledStart ? new Date(task.scheduledStart) : null;
   const scheduledEnd = task.scheduledEnd ? new Date(task.scheduledEnd) : null;
   const startedAt = task.startedAt ? new Date(task.startedAt) : null;
 
-  const elapsedSeconds = task.status === 'active' && startedAt
-    ? Math.floor((now.getTime() - startedAt.getTime()) / 1000)
-    : 0;
-
+  // Effective elapsed excludes all paused periods
+  const totalPausedMs = task.totalPausedMs ?? 0;
+  const currentPauseMs =
+    task.isPaused && task.pausedAt
+      ? now.getTime() - new Date(task.pausedAt).getTime()
+      : 0;
+  const effectiveElapsedMs =
+    task.status === 'active' && startedAt
+      ? Math.max(0, now.getTime() - startedAt.getTime() - totalPausedMs - currentPauseMs)
+      : 0;
+  const elapsedSeconds = Math.floor(effectiveElapsedMs / 1000);
   const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-  const isRunningOver = task.status === 'active' && elapsedMinutes >= task.estimatedMinutes;
-  const overByMinutes = isRunningOver ? elapsedMinutes - task.estimatedMinutes : 0;
 
-  // Beep once when task first goes over (track via ref pattern with state)
-  const [warnedOver, setWarnedOver] = useState(false);
-  useEffect(() => {
-    if (isRunningOver && !warnedOver) {
-      setWarnedOver(true);
-    }
-  }, [isRunningOver, warnedOver]);
+  const isRunningOver = task.status === 'active' && !task.isPaused && elapsedMinutes >= task.estimatedMinutes;
+  const overByMinutes = isRunningOver ? elapsedMinutes - task.estimatedMinutes : 0;
 
   const timeSlot =
     scheduledStart && scheduledEnd
       ? `${formatHHMM(scheduledStart)} – ${formatHHMM(scheduledEnd)}`
       : null;
 
-  const statusClass =
-    task.status === 'active'
-      ? isRunningOver
-        ? 'border-l-2 border-danger bg-danger-dim/30'
-        : 'border-l-2 border-accent bg-accent-dim/30'
-      : task.status === 'complete'
-      ? 'border-l-2 border-success/40 opacity-60'
-      : 'border-l-2 border-border hover:border-border-strong';
+  const isPinned = !!task.manualStart;
+
+  // ── Border/background by state ────────────────────────────────────────────
+  let containerClass = 'border-l-2 ';
+  if (task.status === 'active') {
+    containerClass += isRunningOver
+      ? 'border-danger bg-danger-dim/20'
+      : task.isPaused
+      ? 'border-muted bg-s2'
+      : 'border-accent bg-accent-dim/20';
+  } else if (task.status === 'complete') {
+    containerClass += 'border-success/30 opacity-55';
+  } else {
+    containerClass += 'border-border hover:border-border-strong';
+  }
+
+  // ── Time-slot editing ─────────────────────────────────────────────────────
+  function openTimeEdit() {
+    setTimeInput(
+      task.manualStart ??
+        (scheduledStart ? formatHHMM(scheduledStart) : '')
+    );
+    setEditingTime(true);
+  }
+
+  function confirmTimeEdit() {
+    if (timeInput && onSetStartTime) onSetStartTime(timeInput);
+    setEditingTime(false);
+  }
+
+  function clearManualTime() {
+    if (onSetStartTime) onSetStartTime(undefined);
+    setEditingTime(false);
+  }
+
+  function handleTimeKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmTimeEdit(); }
+    if (e.key === 'Escape') setEditingTime(false);
+  }
 
   return (
     <div
-      className={`relative px-3 py-2 bg-surface ${statusClass} transition-colors select-none ${isDragging ? 'opacity-40' : ''}`}
+      className={`relative px-3 py-2 bg-surface ${containerClass} transition-colors select-none ${isDragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-start gap-2">
-        {/* Drag handle — only for pending */}
+        {/* Drag handle — pending only */}
         {task.status === 'pending' && (
           <button
             {...dragHandleProps}
-            className="mt-0.5 text-dim hover:text-muted cursor-grab active:cursor-grabbing touch-none flex-shrink-0 font-mono text-xs leading-none pt-px"
+            className="mt-0.5 text-dim hover:text-muted cursor-grab active:cursor-grabbing touch-none font-mono text-xs leading-none pt-px flex-shrink-0"
             tabIndex={-1}
             aria-label="Drag to reorder"
           >
@@ -80,11 +119,21 @@ export default function TaskItem({
           </button>
         )}
 
-        {/* Status dot */}
+        {/* Status indicator */}
         <span className="mt-1.5 flex-shrink-0">
-          {task.status === 'complete' && <span className="text-success font-mono text-xs">✓</span>}
+          {task.status === 'complete' && (
+            <span className="text-success font-mono text-xs">✓</span>
+          )}
           {task.status === 'active' && (
-            <span className={`block w-2 h-2 rounded-full ${isRunningOver ? 'bg-danger animate-pulse' : 'bg-accent animate-pulse'}`} />
+            <span
+              className={`block w-2 h-2 rounded-full ${
+                task.isPaused
+                  ? 'bg-muted'
+                  : isRunningOver
+                  ? 'bg-danger animate-pulse'
+                  : 'bg-accent animate-pulse'
+              }`}
+            />
           )}
           {task.status === 'pending' && (
             <span className="block w-2 h-2 rounded-full bg-dim" />
@@ -110,27 +159,95 @@ export default function TaskItem({
           </div>
 
           {/* Time slot row */}
-          <div className="flex items-center gap-3 mt-0.5">
-            {timeSlot && (
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {/* Editable time slot for pending tasks */}
+            {task.status === 'pending' && onSetStartTime && (
+              editingTime ? (
+                <span className="flex items-center gap-1">
+                  <input
+                    type="time"
+                    value={timeInput}
+                    onChange={e => setTimeInput(e.target.value)}
+                    onKeyDown={handleTimeKeyDown}
+                    autoFocus
+                    className="font-mono text-xs bg-s2 border border-accent-mid/60 px-1 py-0 text-tx focus:outline-none w-[5.5rem]"
+                  />
+                  <button
+                    onClick={confirmTimeEdit}
+                    className="font-mono text-xs text-accent border border-accent-mid/50 px-1.5 py-0 hover:bg-accent-dim transition-colors"
+                  >
+                    set
+                  </button>
+                  {isPinned && (
+                    <button
+                      onClick={clearManualTime}
+                      className="font-mono text-xs text-muted hover:text-tx transition-colors px-1"
+                      title="Clear manual time"
+                    >
+                      auto
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditingTime(false)}
+                    className="font-mono text-xs text-dim hover:text-muted px-1"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ) : (
+                <button
+                  onClick={openTimeEdit}
+                  className={`font-mono text-xs hover:text-tx transition-colors ${
+                    isPinned ? 'text-tx' : 'text-muted'
+                  }`}
+                  title={isPinned ? 'Click to edit pinned start time' : 'Click to pin start time'}
+                >
+                  {timeSlot ?? 'pin time'}
+                  {isPinned && (
+                    <span className="ml-1 text-accent">⊕</span>
+                  )}
+                </button>
+              )
+            )}
+
+            {/* Read-only time for active/complete */}
+            {task.status !== 'pending' && timeSlot && (
               <span className="font-mono text-xs text-muted">{timeSlot}</span>
             )}
+
+            {/* Active elapsed / paused state */}
             {task.status === 'active' && (
-              <span className={`font-mono text-xs font-bold ${isRunningOver ? 'text-danger' : 'text-accent'}`}>
-                {formatElapsed(elapsedSeconds)}
+              task.isPaused ? (
+                <span className="font-mono text-xs text-muted tracking-wider">PAUSED · {formatElapsed(elapsedSeconds)}</span>
+              ) : (
+                <span className={`font-mono text-xs font-bold ${isRunningOver ? 'text-danger' : 'text-accent'}`}>
+                  {formatElapsed(elapsedSeconds)}
+                </span>
+              )
+            )}
+
+            {/* Complete delta */}
+            {task.status === 'complete' && task.actualMinutes !== undefined && (
+              <span
+                className={`font-mono text-xs ${
+                  task.actualMinutes > task.estimatedMinutes ? 'text-danger' : 'text-success'
+                }`}
+              >
+                {formatDelta(task.estimatedMinutes, task.actualMinutes)}
               </span>
             )}
-            {task.status === 'complete' && task.actualMinutes !== undefined && (
-              <span className={`font-mono text-xs ${
-                task.actualMinutes > task.estimatedMinutes ? 'text-danger' : 'text-success'
-              }`}>
-                {formatDelta(task.estimatedMinutes, task.actualMinutes)}
+
+            {/* Late-start warning */}
+            {task.status === 'pending' && scheduledStart && scheduledStart < now && (
+              <span className="font-mono text-xs text-danger">
+                {formatDuration(Math.round((now.getTime() - scheduledStart.getTime()) / 60_000))} late
               </span>
             )}
           </div>
 
           {/* Overrun warning */}
           {isRunningOver && (
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="font-mono text-xs text-danger font-bold">
                 ⚠ {formatDuration(overByMinutes)} over estimate
               </span>
@@ -144,24 +261,36 @@ export default function TaskItem({
               )}
             </div>
           )}
-
-          {/* Late start warning for pending tasks */}
-          {task.status === 'pending' && scheduledStart && scheduledStart < now && (
-            <span className="font-mono text-xs text-danger">
-              {formatDuration(Math.round((now.getTime() - scheduledStart.getTime()) / 60_000))} behind
-            </span>
-          )}
         </div>
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          {task.status === 'active' && onComplete && (
-            <button
-              onClick={onComplete}
-              className="font-mono text-xs text-success border border-success/30 px-2 py-0.5 hover:bg-success-dim transition-colors"
-            >
-              done
-            </button>
+          {task.status === 'active' && (
+            <>
+              {task.isPaused ? (
+                <button
+                  onClick={onResume}
+                  className="font-mono text-xs text-accent border border-accent-mid/40 px-2 py-0.5 hover:bg-accent-dim transition-colors"
+                  title="Resume task"
+                >
+                  ▶
+                </button>
+              ) : (
+                <button
+                  onClick={onPause}
+                  className="font-mono text-xs text-muted border border-border px-2 py-0.5 hover:text-tx hover:border-border-strong transition-colors"
+                  title="Pause task"
+                >
+                  ⏸
+                </button>
+              )}
+              <button
+                onClick={onComplete}
+                className="font-mono text-xs text-success border border-success/30 px-2 py-0.5 hover:bg-success-dim transition-colors"
+              >
+                done
+              </button>
+            </>
           )}
           {task.status === 'pending' && onStart && (
             <button
@@ -174,7 +303,6 @@ export default function TaskItem({
           <button
             onClick={() => setExpanded(e => !e)}
             className="font-mono text-xs text-dim hover:text-muted px-1 py-0.5"
-            aria-label="Toggle options"
           >
             {expanded ? '▲' : '▼'}
           </button>
@@ -183,7 +311,7 @@ export default function TaskItem({
 
       {/* Expanded options */}
       {expanded && (
-        <div className="mt-2 pt-2 border-t border-border flex gap-2 flex-wrap">
+        <div className="mt-2 pt-2 border-t border-border flex gap-2 flex-wrap items-center">
           {task.status === 'pending' && onMoveToOverflow && (
             <button
               onClick={() => { onMoveToOverflow(); setExpanded(false); }}
@@ -195,13 +323,13 @@ export default function TaskItem({
           {onRemove && (
             <button
               onClick={() => { onRemove(); setExpanded(false); }}
-              className="font-mono text-xs text-danger/60 border border-danger-dim/40 px-2 py-0.5 hover:text-danger hover:border-danger-dim transition-colors"
+              className="font-mono text-xs text-danger/70 border border-danger-dim/50 px-2 py-0.5 hover:text-danger hover:border-danger-dim transition-colors"
             >
               delete
             </button>
           )}
           <span className="font-mono text-xs text-dim ml-auto">
-            created {new Date(task.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            added {new Date(task.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       )}

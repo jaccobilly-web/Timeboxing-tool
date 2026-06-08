@@ -115,9 +115,12 @@ export default function HomePage() {
             onAddTask={dayState.addTask}
             onStartTask={dayState.startTask}
             onCompleteTask={dayState.completeTask}
+            onPauseTask={dayState.pauseTask}
+            onResumeTask={dayState.resumeTask}
             onReschedule={dayState.rescheduleNow}
             onRemoveTask={dayState.removeTask}
             onMoveToOverflow={dayState.moveToOverflow}
+            onSetTaskStartTime={dayState.updateTaskStart}
           />
         </div>
 

@@ -19,9 +19,12 @@ interface AgendaPanelProps {
   onAddTask: (title: string, minutes: number) => void;
   onStartTask: (id: string) => void;
   onCompleteTask: (id: string) => void;
+  onPauseTask: (id: string) => void;
+  onResumeTask: (id: string) => void;
   onReschedule: () => void;
   onRemoveTask: (id: string) => void;
   onMoveToOverflow: (id: string) => void;
+  onSetTaskStartTime: (id: string, time: string | undefined) => void;
 }
 
 function SortableTaskRow({
@@ -29,17 +32,23 @@ function SortableTaskRow({
   now,
   onStart,
   onComplete,
+  onPause,
+  onResume,
   onReschedule,
   onRemove,
   onMoveToOverflow,
+  onSetStartTime,
 }: {
   task: Task;
   now: Date;
   onStart?: () => void;
   onComplete?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
   onReschedule?: () => void;
   onRemove?: () => void;
   onMoveToOverflow?: () => void;
+  onSetStartTime?: (time: string | undefined) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: task.status !== 'pending' });
@@ -57,9 +66,12 @@ function SortableTaskRow({
         now={now}
         onStart={onStart}
         onComplete={onComplete}
+        onPause={onPause}
+        onResume={onResume}
         onReschedule={onReschedule}
         onRemove={onRemove}
         onMoveToOverflow={onMoveToOverflow}
+        onSetStartTime={onSetStartTime}
         dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
         isDragging={isDragging}
       />
@@ -73,9 +85,12 @@ export default function AgendaPanel({
   onAddTask,
   onStartTask,
   onCompleteTask,
+  onPauseTask,
+  onResumeTask,
   onReschedule,
   onRemoveTask,
   onMoveToOverflow,
+  onSetTaskStartTime,
 }: AgendaPanelProps) {
   const [showAll, setShowAll] = useState(false);
 
@@ -141,6 +156,8 @@ export default function AgendaPanel({
               task={activeTask}
               now={now}
               onComplete={() => onCompleteTask(activeTask.id)}
+              onPause={() => onPauseTask(activeTask.id)}
+              onResume={() => onResumeTask(activeTask.id)}
               onReschedule={onReschedule}
               onRemove={() => onRemoveTask(activeTask.id)}
             />
@@ -159,6 +176,7 @@ export default function AgendaPanel({
                 onReschedule={onReschedule}
                 onRemove={() => onRemoveTask(task.id)}
                 onMoveToOverflow={() => onMoveToOverflow(task.id)}
+                onSetStartTime={t => onSetTaskStartTime(task.id, t)}
               />
             ))}
           </div>
