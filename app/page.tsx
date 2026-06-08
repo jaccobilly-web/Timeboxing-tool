@@ -114,6 +114,7 @@ export default function HomePage() {
             now={now}
             onAddTask={dayState.addTask}
             onStartTask={dayState.startTask}
+            onStartNow={dayState.startNow}
             onCompleteTask={dayState.completeTask}
             onPauseTask={dayState.pauseTask}
             onResumeTask={dayState.resumeTask}

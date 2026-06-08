@@ -18,6 +18,7 @@ interface AgendaPanelProps {
   now: Date;
   onAddTask: (title: string, minutes: number) => void;
   onStartTask: (id: string) => void;
+  onStartNow: (id: string) => void;
   onCompleteTask: (id: string) => void;
   onPauseTask: (id: string) => void;
   onResumeTask: (id: string) => void;
@@ -30,7 +31,9 @@ interface AgendaPanelProps {
 function SortableTaskRow({
   task,
   now,
+  isNextUp,
   onStart,
+  onStartNow,
   onComplete,
   onPause,
   onResume,
@@ -41,7 +44,9 @@ function SortableTaskRow({
 }: {
   task: Task;
   now: Date;
+  isNextUp?: boolean;
   onStart?: () => void;
+  onStartNow?: () => void;
   onComplete?: () => void;
   onPause?: () => void;
   onResume?: () => void;
@@ -64,7 +69,9 @@ function SortableTaskRow({
       <TaskItem
         task={task}
         now={now}
+        isNextUp={isNextUp}
         onStart={onStart}
+        onStartNow={onStartNow}
         onComplete={onComplete}
         onPause={onPause}
         onResume={onResume}
@@ -84,6 +91,7 @@ export default function AgendaPanel({
   now,
   onAddTask,
   onStartTask,
+  onStartNow,
   onCompleteTask,
   onPauseTask,
   onResumeTask,
@@ -167,12 +175,14 @@ export default function AgendaPanel({
         {/* Pending tasks (sortable) */}
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           <div className="divide-y divide-border">
-            {pendingTasks.map(task => (
+            {pendingTasks.map((task, i) => (
               <SortableTaskRow
                 key={task.id}
                 task={task}
                 now={now}
+                isNextUp={!hasActiveTask && i === 0}
                 onStart={!hasActiveTask ? () => onStartTask(task.id) : undefined}
+                onStartNow={!hasActiveTask && i === 0 ? () => onStartNow(task.id) : undefined}
                 onReschedule={onReschedule}
                 onRemove={() => onRemoveTask(task.id)}
                 onMoveToOverflow={() => onMoveToOverflow(task.id)}

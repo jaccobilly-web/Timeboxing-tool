@@ -7,7 +7,9 @@ import { formatHHMM, formatDuration, formatElapsed, formatDelta } from '@/lib/sc
 interface TaskItemProps {
   task: Task;
   now: Date;
+  isNextUp?: boolean;
   onStart?: () => void;
+  onStartNow?: () => void;
   onComplete?: () => void;
   onPause?: () => void;
   onResume?: () => void;
@@ -22,7 +24,9 @@ interface TaskItemProps {
 export default function TaskItem({
   task,
   now,
+  isNextUp,
   onStart,
+  onStartNow,
   onComplete,
   onPause,
   onResume,
@@ -308,6 +312,16 @@ export default function TaskItem({
           </button>
         </div>
       </div>
+
+      {/* Start Now banner — appears on the next-up task when nothing is active */}
+      {isNextUp && onStartNow && (
+        <button
+          onClick={onStartNow}
+          className="mt-2 w-full font-mono text-xs font-bold tracking-widest text-bg bg-accent hover:bg-accent/80 py-1.5 transition-colors"
+        >
+          ▶ START NOW{task.manualStart ? ' (clear pin)' : ''}
+        </button>
+      )}
 
       {/* Expanded options */}
       {expanded && (

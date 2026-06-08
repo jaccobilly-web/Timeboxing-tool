@@ -42,9 +42,7 @@ export function useDayState(now: Date) {
 
   const startTask = useCallback((taskId: string) => {
     setState(prev => {
-      // Only one active task allowed
       if (prev.tasks.some(t => t.status === 'active')) return prev;
-
       const now = nowRef.current;
       const task = prev.tasks.find(t => t.id === taskId);
       if (!task || task.status !== 'pending') return prev;
@@ -55,7 +53,25 @@ export function useDayState(now: Date) {
           : t
       );
       const draft = { ...prev, tasks: newTasks };
-      // Pending tasks start after this task's expected end
+      const expectedEnd = new Date(now.getTime() + task.estimatedMinutes * 60_000);
+      return recalculateSchedule(draft, expectedEnd);
+    });
+  }, []);
+
+  /** Like startTask but also clears any manualStart pin, scheduling from now. */
+  const startNow = useCallback((taskId: string) => {
+    setState(prev => {
+      if (prev.tasks.some(t => t.status === 'active')) return prev;
+      const now = nowRef.current;
+      const task = prev.tasks.find(t => t.id === taskId);
+      if (!task || task.status !== 'pending') return prev;
+
+      const newTasks = prev.tasks.map(t =>
+        t.id === taskId
+          ? { ...t, status: 'active' as const, startedAt: now.toISOString(), manualStart: undefined }
+          : t
+      );
+      const draft = { ...prev, tasks: newTasks };
       const expectedEnd = new Date(now.getTime() + task.estimatedMinutes * 60_000);
       return recalculateSchedule(draft, expectedEnd);
     });
@@ -242,6 +258,7 @@ export function useDayState(now: Date) {
     state,
     addTask,
     startTask,
+    startNow,
     completeTask,
     pauseTask,
     resumeTask,
