@@ -26,6 +26,8 @@ interface AgendaPanelProps {
   onRemoveTask: (id: string) => void;
   onMoveToOverflow: (id: string) => void;
   onSetTaskStartTime: (id: string, time: string | undefined) => void;
+  onSetElapsed: (id: string, minutes: number) => void;
+  onOpenStats: () => void;
 }
 
 function SortableTaskRow({
@@ -41,6 +43,7 @@ function SortableTaskRow({
   onRemove,
   onMoveToOverflow,
   onSetStartTime,
+  onSetElapsed,
 }: {
   task: Task;
   now: Date;
@@ -54,6 +57,7 @@ function SortableTaskRow({
   onRemove?: () => void;
   onMoveToOverflow?: () => void;
   onSetStartTime?: (time: string | undefined) => void;
+  onSetElapsed?: (minutes: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: task.status !== 'pending' });
@@ -79,6 +83,7 @@ function SortableTaskRow({
         onRemove={onRemove}
         onMoveToOverflow={onMoveToOverflow}
         onSetStartTime={onSetStartTime}
+        onSetElapsed={onSetElapsed}
         dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
         isDragging={isDragging}
       />
@@ -99,6 +104,8 @@ export default function AgendaPanel({
   onRemoveTask,
   onMoveToOverflow,
   onSetTaskStartTime,
+  onSetElapsed,
+  onOpenStats,
 }: AgendaPanelProps) {
   const [showAll, setShowAll] = useState(false);
 
@@ -117,13 +124,21 @@ export default function AgendaPanel({
   return (
     <div className="flex flex-col h-full border-r border-border">
       {/* Clock */}
-      <div className="px-4 py-3 border-b border-border">
-        <div className="font-mono text-4xl font-bold text-tx tracking-tight">
-          {formatHHMMSS(now)}
+      <div className="px-4 py-3 border-b border-border flex items-start justify-between">
+        <div>
+          <div className="font-mono text-4xl font-bold text-tx tracking-tight">
+            {formatHHMMSS(now)}
+          </div>
+          <div className="font-mono text-xs text-muted mt-0.5">
+            {now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
         </div>
-        <div className="font-mono text-xs text-muted mt-0.5">
-          {now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </div>
+        <button
+          onClick={onOpenStats}
+          className="font-mono text-xs text-muted hover:text-tx border border-border px-2 py-1 mt-1 transition-colors tracking-widest"
+        >
+          STATS
+        </button>
       </div>
 
       {/* Quick add */}
@@ -168,6 +183,7 @@ export default function AgendaPanel({
               onResume={() => onResumeTask(activeTask.id)}
               onReschedule={onReschedule}
               onRemove={() => onRemoveTask(activeTask.id)}
+              onSetElapsed={m => onSetElapsed(activeTask.id, m)}
             />
           </div>
         )}

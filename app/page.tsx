@@ -11,7 +11,6 @@ import {
   closestCenter,
   type DragStartEvent,
   type DragEndEvent,
-  type DragOverEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
@@ -21,10 +20,10 @@ import { usePomodoro } from '@/hooks/usePomodoro';
 
 import AgendaPanel from '@/components/AgendaPanel';
 import ControlsPanel from '@/components/ControlsPanel';
+import StatsModal from '@/components/StatsModal';
 import type { Task } from '@/lib/types';
 import { formatDuration } from '@/lib/scheduler';
 
-// Lightweight overlay card for dragging
 function DragCard({ task }: { task: Task }) {
   return (
     <div className="px-3 py-2 bg-s2 border border-border-strong shadow-xl font-sans text-sm text-tx flex items-center gap-2 max-w-xs">
@@ -42,8 +41,8 @@ export default function HomePage() {
 
   const pom = usePomodoro(state.pomodoroConfig);
 
-  // DnD state
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [showStats, setShowStats] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -57,12 +56,9 @@ export default function HomePage() {
          null)
       : null;
 
-  const handleDragStart = useCallback(
-    ({ active }: DragStartEvent) => {
-      setActiveDragId(active.id as string);
-    },
-    []
-  );
+  const handleDragStart = useCallback(({ active }: DragStartEvent) => {
+    setActiveDragId(active.id as string);
+  }, []);
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
@@ -83,11 +79,9 @@ export default function HomePage() {
           dayState.reorderAgendaTasks(oldIndex, newIndex);
         }
       } else if (isFromOverflow) {
-        // Dropped on a pending agenda task → insert before it; else append
         const pendingTasks = state.tasks.filter(t => t.status === 'pending');
         const insertIndex = pendingTasks.findIndex(t => t.id === overId);
         if (overId === 'agenda-droppable' || overId === 'overflow-droppable') {
-          // Dropped on container — append
           dayState.moveOverflowToAgenda(activeId);
         } else if (insertIndex !== -1) {
           dayState.moveOverflowToAgenda(activeId, insertIndex);
@@ -122,6 +116,8 @@ export default function HomePage() {
             onRemoveTask={dayState.removeTask}
             onMoveToOverflow={dayState.moveToOverflow}
             onSetTaskStartTime={dayState.updateTaskStart}
+            onSetElapsed={dayState.setElapsedMinutes}
+            onOpenStats={() => setShowStats(true)}
           />
         </div>
 
@@ -143,10 +139,11 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Drag overlay — rendered on top of everything */}
       <DragOverlay>
         {activeDragTask ? <DragCard task={activeDragTask} /> : null}
       </DragOverlay>
+
+      {showStats && <StatsModal onClose={() => setShowStats(false)} />}
     </DndContext>
   );
 }

@@ -156,6 +156,22 @@ export function useDayState(now: Date) {
     });
   }, []);
 
+  /** Correct the elapsed time on an active task (e.g. left running by accident). */
+  const setElapsedMinutes = useCallback((taskId: string, minutes: number) => {
+    setState(prev => {
+      const now = nowRef.current;
+      const newStartedAt = new Date(now.getTime() - Math.max(0, minutes) * 60_000);
+      return {
+        ...prev,
+        tasks: prev.tasks.map(t =>
+          t.id === taskId && t.status === 'active'
+            ? { ...t, startedAt: newStartedAt.toISOString(), totalPausedMs: 0, isPaused: false, pausedAt: undefined }
+            : t
+        ),
+      };
+    });
+  }, []);
+
   const rescheduleNow = useCallback(() => {
     setState(prev => {
       const now = nowRef.current;
@@ -271,5 +287,6 @@ export function useDayState(now: Date) {
     updatePomodoroConfig,
     updateTaskTitle,
     updateTaskStart,
+    setElapsedMinutes,
   };
 }

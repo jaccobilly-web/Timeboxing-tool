@@ -17,6 +17,7 @@ interface TaskItemProps {
   onRemove?: () => void;
   onMoveToOverflow?: () => void;
   onSetStartTime?: (time: string | undefined) => void;
+  onSetElapsed?: (minutes: number) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
 }
@@ -34,12 +35,15 @@ export default function TaskItem({
   onRemove,
   onMoveToOverflow,
   onSetStartTime,
+  onSetElapsed,
   dragHandleProps,
   isDragging,
 }: TaskItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState('');
+  const [editingElapsed, setEditingElapsed] = useState(false);
+  const [elapsedInput, setElapsedInput] = useState('');
 
   const scheduledStart = task.scheduledStart ? new Date(task.scheduledStart) : null;
   const scheduledEnd = task.scheduledEnd ? new Date(task.scheduledEnd) : null;
@@ -223,10 +227,44 @@ export default function TaskItem({
             {task.status === 'active' && (
               task.isPaused ? (
                 <span className="font-mono text-xs text-muted tracking-wider">PAUSED · {formatElapsed(elapsedSeconds)}</span>
-              ) : (
-                <span className={`font-mono text-xs font-bold ${isRunningOver ? 'text-danger' : 'text-accent'}`}>
-                  {formatElapsed(elapsedSeconds)}
+              ) : editingElapsed ? (
+                <span className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={elapsedInput}
+                    onChange={e => setElapsedInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const m = parseInt(elapsedInput, 10);
+                        if (!isNaN(m) && m >= 0) onSetElapsed?.(m);
+                        setEditingElapsed(false);
+                      }
+                      if (e.key === 'Escape') setEditingElapsed(false);
+                    }}
+                    autoFocus
+                    placeholder="min"
+                    min="0"
+                    className="w-14 font-mono text-xs bg-s2 border border-accent-mid/50 px-1 py-0 text-tx focus:outline-none"
+                  />
+                  <span className="font-mono text-xs text-muted">min</span>
+                  <button
+                    onClick={() => {
+                      const m = parseInt(elapsedInput, 10);
+                      if (!isNaN(m) && m >= 0) onSetElapsed?.(m);
+                      setEditingElapsed(false);
+                    }}
+                    className="font-mono text-xs text-accent border border-accent-mid/40 px-1.5 py-0 hover:bg-accent-dim"
+                  >set</button>
+                  <button onClick={() => setEditingElapsed(false)} className="font-mono text-xs text-dim hover:text-muted">✕</button>
                 </span>
+              ) : (
+                <button
+                  onClick={() => { setElapsedInput(String(elapsedMinutes)); setEditingElapsed(true); }}
+                  className={`font-mono text-xs font-bold ${isRunningOver ? 'text-danger' : 'text-accent'} hover:opacity-70 transition-opacity`}
+                  title="Click to correct elapsed time"
+                >
+                  {formatElapsed(elapsedSeconds)}
+                </button>
               )
             )}
 
