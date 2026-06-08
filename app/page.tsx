@@ -117,6 +117,7 @@ export default function HomePage() {
             onMoveToOverflow={dayState.moveToOverflow}
             onSetTaskStartTime={dayState.updateTaskStart}
             onSetElapsed={dayState.setElapsedMinutes}
+            onDeferToTomorrow={dayState.deferToTomorrow}
             onOpenStats={() => setShowStats(true)}
           />
         </div>

@@ -18,6 +18,7 @@ interface TaskItemProps {
   onMoveToOverflow?: () => void;
   onSetStartTime?: (time: string | undefined) => void;
   onSetElapsed?: (minutes: number) => void;
+  onDeferToTomorrow?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
 }
@@ -36,6 +37,7 @@ export default function TaskItem({
   onMoveToOverflow,
   onSetStartTime,
   onSetElapsed,
+  onDeferToTomorrow,
   dragHandleProps,
   isDragging,
 }: TaskItemProps) {
@@ -165,6 +167,11 @@ export default function TaskItem({
               {formatDuration(task.estimatedMinutes)}
             </span>
           </div>
+          {task.deferredFrom && (
+            <span className="font-mono text-xs text-info/80">
+              ↩ carried from {task.deferredFrom}
+            </span>
+          )}
 
           {/* Time slot row */}
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -326,6 +333,15 @@ export default function TaskItem({
                   ⏸
                 </button>
               )}
+              {onDeferToTomorrow && (
+                <button
+                  onClick={onDeferToTomorrow}
+                  className="font-mono text-xs text-info/80 border border-info/20 px-2 py-0.5 hover:bg-info-dim transition-colors"
+                  title="Carry to tomorrow's agenda"
+                >
+                  →tmrw
+                </button>
+              )}
               <button
                 onClick={onComplete}
                 className="font-mono text-xs text-success border border-success/30 px-2 py-0.5 hover:bg-success-dim transition-colors"
@@ -370,6 +386,14 @@ export default function TaskItem({
               className="font-mono text-xs text-muted border border-border px-2 py-0.5 hover:text-tx hover:border-border-strong transition-colors"
             >
               → not today
+            </button>
+          )}
+          {task.status !== 'complete' && onDeferToTomorrow && (
+            <button
+              onClick={() => { onDeferToTomorrow(); setExpanded(false); }}
+              className="font-mono text-xs text-info/80 border border-info/20 px-2 py-0.5 hover:bg-info-dim transition-colors"
+            >
+              → tomorrow
             </button>
           )}
           {onRemove && (

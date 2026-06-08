@@ -12,6 +12,7 @@ export interface Task {
   isPaused?: boolean;
   pausedAt?: string;         // ISO string — when the current pause began
   totalPausedMs?: number;    // accumulated paused milliseconds across all pauses
+  deferredFrom?: string;     // YYYY-MM-DD — set when carried forward from another day
   status: TaskStatus;
   completedAt?: string;      // ISO string
   notes?: string;
@@ -29,6 +30,7 @@ export interface DayState {
   date: string;              // YYYY-MM-DD
   tasks: Task[];             // ordered agenda: complete | active | pending
   overflowTasks: Task[];     // "Not Today" bucket
+  tomorrowTasks: Task[];     // explicitly deferred to the next calendar day
   dayStart: string;          // HH:MM
   dayEnd: string;            // HH:MM
   pomodoroConfig: PomodoroConfig;

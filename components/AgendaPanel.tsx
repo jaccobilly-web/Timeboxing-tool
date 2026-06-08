@@ -27,6 +27,7 @@ interface AgendaPanelProps {
   onMoveToOverflow: (id: string) => void;
   onSetTaskStartTime: (id: string, time: string | undefined) => void;
   onSetElapsed: (id: string, minutes: number) => void;
+  onDeferToTomorrow: (id: string) => void;
   onOpenStats: () => void;
 }
 
@@ -44,6 +45,7 @@ function SortableTaskRow({
   onMoveToOverflow,
   onSetStartTime,
   onSetElapsed,
+  onDeferToTomorrow,
 }: {
   task: Task;
   now: Date;
@@ -58,6 +60,7 @@ function SortableTaskRow({
   onMoveToOverflow?: () => void;
   onSetStartTime?: (time: string | undefined) => void;
   onSetElapsed?: (minutes: number) => void;
+  onDeferToTomorrow?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: task.status !== 'pending' });
@@ -84,6 +87,7 @@ function SortableTaskRow({
         onMoveToOverflow={onMoveToOverflow}
         onSetStartTime={onSetStartTime}
         onSetElapsed={onSetElapsed}
+        onDeferToTomorrow={onDeferToTomorrow}
         dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
         isDragging={isDragging}
       />
@@ -105,6 +109,7 @@ export default function AgendaPanel({
   onMoveToOverflow,
   onSetTaskStartTime,
   onSetElapsed,
+  onDeferToTomorrow,
   onOpenStats,
 }: AgendaPanelProps) {
   const [showAll, setShowAll] = useState(false);
@@ -184,6 +189,7 @@ export default function AgendaPanel({
               onReschedule={onReschedule}
               onRemove={() => onRemoveTask(activeTask.id)}
               onSetElapsed={m => onSetElapsed(activeTask.id, m)}
+              onDeferToTomorrow={() => onDeferToTomorrow(activeTask.id)}
             />
           </div>
         )}
@@ -203,6 +209,7 @@ export default function AgendaPanel({
                 onRemove={() => onRemoveTask(task.id)}
                 onMoveToOverflow={() => onMoveToOverflow(task.id)}
                 onSetStartTime={t => onSetTaskStartTime(task.id, t)}
+                onDeferToTomorrow={() => onDeferToTomorrow(task.id)}
               />
             ))}
           </div>

@@ -156,6 +156,44 @@ export function useDayState(now: Date) {
     });
   }, []);
 
+  /**
+   * Remove a task from today entirely and queue it for tomorrow's agenda.
+   * Works on active, pending, and overflow tasks.
+   */
+  const deferToTomorrow = useCallback((taskId: string) => {
+    setState(prev => {
+      const now = nowRef.current;
+      const task =
+        prev.tasks.find(t => t.id === taskId) ??
+        prev.overflowTasks.find(t => t.id === taskId);
+      if (!task) return prev;
+
+      const deferred: Task = {
+        ...task,
+        status: 'pending',
+        startedAt: undefined,
+        isPaused: false,
+        pausedAt: undefined,
+        totalPausedMs: undefined,
+        scheduledStart: undefined,
+        scheduledEnd: undefined,
+        deferredFrom: prev.date,
+      };
+
+      const newTasks = prev.tasks.filter(t => t.id !== taskId);
+      const newOverflow = prev.overflowTasks.filter(t => t.id !== taskId);
+      // Deduplicate in case it was already queued
+      const newTomorrow = [
+        ...prev.tomorrowTasks.filter(t => t.id !== taskId),
+        deferred,
+      ];
+
+      const draft = { ...prev, tasks: newTasks, overflowTasks: newOverflow, tomorrowTasks: newTomorrow };
+      const fromTime = getPendingFromTime(draft, now);
+      return recalculateSchedule(draft, fromTime);
+    });
+  }, []);
+
   /** Correct the elapsed time on an active task (e.g. left running by accident). */
   const setElapsedMinutes = useCallback((taskId: string, minutes: number) => {
     setState(prev => {
@@ -288,5 +326,6 @@ export function useDayState(now: Date) {
     updateTaskTitle,
     updateTaskStart,
     setElapsedMinutes,
+    deferToTomorrow,
   };
 }
