@@ -1,21 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useDroppable } from '@dnd-kit/core';
 import type { Task } from '@/lib/types';
 import { formatHHMMSS } from '@/lib/scheduler';
-import TaskItem from './TaskItem';
 import QuickAdd from './QuickAdd';
+import TimelineView from './TimelineView';
 
 interface AgendaPanelProps {
   tasks: Task[];
   now: Date;
+  date: string;
+  dayStart: string;
+  dayEnd: string;
   onAddTask: (title: string, minutes: number) => void;
   onStartTask: (id: string) => void;
   onStartNow: (id: string) => void;
@@ -31,73 +26,12 @@ interface AgendaPanelProps {
   onOpenStats: () => void;
 }
 
-function SortableTaskRow({
-  task,
-  now,
-  isNextUp,
-  onStart,
-  onStartNow,
-  onComplete,
-  onPause,
-  onResume,
-  onReschedule,
-  onRemove,
-  onMoveToOverflow,
-  onSetStartTime,
-  onSetElapsed,
-  onDeferToTomorrow,
-}: {
-  task: Task;
-  now: Date;
-  isNextUp?: boolean;
-  onStart?: () => void;
-  onStartNow?: () => void;
-  onComplete?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  onReschedule?: () => void;
-  onRemove?: () => void;
-  onMoveToOverflow?: () => void;
-  onSetStartTime?: (time: string | undefined) => void;
-  onSetElapsed?: (minutes: number) => void;
-  onDeferToTomorrow?: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task.id, disabled: task.status !== 'pending' });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : undefined,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      <TaskItem
-        task={task}
-        now={now}
-        isNextUp={isNextUp}
-        onStart={onStart}
-        onStartNow={onStartNow}
-        onComplete={onComplete}
-        onPause={onPause}
-        onResume={onResume}
-        onReschedule={onReschedule}
-        onRemove={onRemove}
-        onMoveToOverflow={onMoveToOverflow}
-        onSetStartTime={onSetStartTime}
-        onSetElapsed={onSetElapsed}
-        onDeferToTomorrow={onDeferToTomorrow}
-        dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
-        isDragging={isDragging}
-      />
-    </div>
-  );
-}
-
 export default function AgendaPanel({
   tasks,
   now,
+  date,
+  dayStart,
+  dayEnd,
   onAddTask,
   onStartTask,
   onStartNow,
@@ -112,20 +46,6 @@ export default function AgendaPanel({
   onDeferToTomorrow,
   onOpenStats,
 }: AgendaPanelProps) {
-  const [showAll, setShowAll] = useState(false);
-
-  const { setNodeRef: setDropRef } = useDroppable({ id: 'agenda-droppable' });
-
-  const completedTasks = tasks.filter(t => t.status === 'complete');
-  const activeTask = tasks.find(t => t.status === 'active');
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-
-  const sortableIds = pendingTasks.map(t => t.id);
-
-  const hasActiveTask = !!activeTask;
-
-  const visibleCompleted = showAll ? completedTasks : completedTasks.slice(-3);
-
   return (
     <div className="flex flex-col h-full border-r border-border">
       {/* Clock */}
@@ -151,82 +71,25 @@ export default function AgendaPanel({
         <QuickAdd onAdd={onAddTask} />
       </div>
 
-      {/* Task list */}
-      <div className="flex-1 overflow-y-auto" ref={setDropRef}>
-        {/* Completed (collapsed, last 3) */}
-        {completedTasks.length > 0 && (
-          <div className="border-b border-border">
-            {completedTasks.length > 3 && (
-              <button
-                onClick={() => setShowAll(s => !s)}
-                className="w-full px-3 py-1 text-left font-mono text-xs text-dim hover:text-muted transition-colors"
-              >
-                {showAll ? '▲ hide older' : `▼ +${completedTasks.length - 3} completed`}
-              </button>
-            )}
-            <div className="divide-y divide-border">
-              {visibleCompleted.map(task => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  now={now}
-                  onRemove={() => onRemoveTask(task.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Active task */}
-        {activeTask && (
-          <div className="border-b border-border">
-            <TaskItem
-              task={activeTask}
-              now={now}
-              onComplete={() => onCompleteTask(activeTask.id)}
-              onPause={() => onPauseTask(activeTask.id)}
-              onResume={() => onResumeTask(activeTask.id)}
-              onReschedule={onReschedule}
-              onRemove={() => onRemoveTask(activeTask.id)}
-              onSetElapsed={m => onSetElapsed(activeTask.id, m)}
-              onDeferToTomorrow={() => onDeferToTomorrow(activeTask.id)}
-            />
-          </div>
-        )}
-
-        {/* Pending tasks (sortable) */}
-        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-          <div className="divide-y divide-border">
-            {pendingTasks.map((task, i) => (
-              <SortableTaskRow
-                key={task.id}
-                task={task}
-                now={now}
-                isNextUp={!hasActiveTask && i === 0}
-                onStart={!hasActiveTask ? () => onStartTask(task.id) : undefined}
-                onStartNow={!hasActiveTask && i === 0 ? () => onStartNow(task.id) : undefined}
-                onReschedule={onReschedule}
-                onRemove={() => onRemoveTask(task.id)}
-                onMoveToOverflow={() => onMoveToOverflow(task.id)}
-                onSetStartTime={t => onSetTaskStartTime(task.id, t)}
-                onDeferToTomorrow={() => onDeferToTomorrow(task.id)}
-              />
-            ))}
-          </div>
-        </SortableContext>
-
-        {/* Empty state */}
-        {tasks.length === 0 && (
-          <div className="px-4 py-8 text-center font-mono text-xs text-dim">
-            no tasks scheduled<br />add one above
-          </div>
-        )}
-        {tasks.length > 0 && pendingTasks.length === 0 && !activeTask && (
-          <div className="px-4 py-4 text-center font-mono text-xs text-muted">
-            all tasks complete
-          </div>
-        )}
-      </div>
+      {/* Timeline */}
+      <TimelineView
+        tasks={tasks}
+        now={now}
+        date={date}
+        dayStart={dayStart}
+        dayEnd={dayEnd}
+        onStart={onStartTask}
+        onStartNow={onStartNow}
+        onComplete={onCompleteTask}
+        onPause={onPauseTask}
+        onResume={onResumeTask}
+        onReschedule={onReschedule}
+        onSetElapsed={onSetElapsed}
+        onRemove={onRemoveTask}
+        onMoveToOverflow={onMoveToOverflow}
+        onDeferToTomorrow={onDeferToTomorrow}
+        onSetStartTime={onSetTaskStartTime}
+      />
     </div>
   );
 }

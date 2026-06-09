@@ -5,14 +5,12 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  KeyboardSensor,
   useSensor,
   useSensors,
   closestCenter,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 import { useClock } from '@/hooks/useClock';
 import { useDayState } from '@/hooks/useDayState';
@@ -45,8 +43,7 @@ export default function HomePage() {
   const [showStats, setShowStats] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
   const activeDragTask =
@@ -106,6 +103,9 @@ export default function HomePage() {
           <AgendaPanel
             tasks={state.tasks}
             now={now}
+            date={state.date}
+            dayStart={state.dayStart}
+            dayEnd={state.dayEnd}
             onAddTask={dayState.addTask}
             onStartTask={dayState.startTask}
             onStartNow={dayState.startNow}

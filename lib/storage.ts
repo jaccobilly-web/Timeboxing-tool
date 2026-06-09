@@ -70,6 +70,36 @@ function loadDeferredFromYesterday(): Task[] {
   return [];
 }
 
+/**
+ * Collect tasks from the most recent previous day that were still pending or
+ * active and were NOT explicitly deferred (i.e. not in tomorrowTasks).
+ * These are tasks the user simply didn't get to — carry them forward.
+ */
+function loadLeftoverFromYesterday(): Task[] {
+  if (typeof window === 'undefined') return [];
+
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${day}`;
+    const raw = localStorage.getItem(storageKey(dateStr));
+    if (!raw) continue;
+    try {
+      const prev: DayState = JSON.parse(raw);
+      const tomorrowIds = new Set((prev.tomorrowTasks ?? []).map(t => t.id));
+      const leftover = prev.tasks
+        .filter(t => (t.status === 'pending' || t.status === 'active') && !tomorrowIds.has(t.id))
+        .map(t => ({ ...t, deferredFrom: t.deferredFrom ?? dateStr }));
+      if (leftover.length > 0) return leftover;
+    } catch { /* corrupt, skip */ }
+    break;
+  }
+  return [];
+}
+
 export function loadOrCreate(): DayState {
   if (typeof window === 'undefined') {
     return createDefaultDayState(getTodayString());
@@ -89,26 +119,36 @@ export function loadOrCreate(): DayState {
     } catch { /* corrupt, fall through */ }
   }
 
-  // New day: build fresh state with overflow and deferred tasks
+  // New day: build fresh state with overflow, explicitly deferred, and leftover tasks
   const prevOverflow = loadPreviousOverflow();
   const deferred = loadDeferredFromYesterday();
+  const leftover = loadLeftoverFromYesterday();
 
   const fresh = createDefaultDayState(today);
 
-  // Deferred tasks go to the TOP of today's agenda (reset to pending, fresh schedule)
-  const deferredPending: Task[] = deferred.map(t => ({
-    ...t,
-    status: 'pending' as const,
-    startedAt: undefined,
-    isPaused: false,
-    pausedAt: undefined,
-    scheduledStart: undefined,
-    scheduledEnd: undefined,
-  }));
+  function resetToPending(t: Task): Task {
+    return {
+      ...t,
+      status: 'pending' as const,
+      startedAt: undefined,
+      isPaused: false,
+      pausedAt: undefined,
+      totalPausedMs: undefined,
+      scheduledStart: undefined,
+      scheduledEnd: undefined,
+    };
+  }
+
+  // Explicit deferrals first, then unfinished leftovers (deduped by id)
+  const deferredPending = deferred.map(resetToPending);
+  const deferredIds = new Set(deferredPending.map(t => t.id));
+  const leftoverPending = leftover
+    .filter(t => !deferredIds.has(t.id))
+    .map(resetToPending);
 
   const withAll = {
     ...fresh,
-    tasks: deferredPending,
+    tasks: [...deferredPending, ...leftoverPending],
     overflowTasks: prevOverflow,
   };
   return scheduleFromDayStart(withAll);
