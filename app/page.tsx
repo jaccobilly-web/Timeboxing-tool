@@ -102,6 +102,7 @@ export default function HomePage() {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <AgendaPanel
             tasks={state.tasks}
+            blockedTimes={state.blockedTimes}
             now={now}
             date={state.date}
             dayStart={state.dayStart}
@@ -119,6 +120,8 @@ export default function HomePage() {
             onSetElapsed={dayState.setElapsedMinutes}
             onDeferToTomorrow={dayState.deferToTomorrow}
             onOpenStats={() => setShowStats(true)}
+            onAddBlockedTime={dayState.addBlockedTime}
+            onRemoveBlockedTime={dayState.removeBlockedTime}
           />
         </div>
 

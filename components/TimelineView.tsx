@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import type { Task } from '@/lib/types';
+import type { Task, BlockedTime } from '@/lib/types';
 import {
   formatHHMM,
   formatDuration,
@@ -389,6 +389,7 @@ function TaskBlock({
 
 interface Props {
   tasks: Task[];
+  blockedTimes: BlockedTime[];
   now: Date;
   date: string;
   dayStart: string;
@@ -404,13 +405,14 @@ interface Props {
   onMoveToOverflow: (id: string) => void;
   onDeferToTomorrow: (id: string) => void;
   onSetStartTime: (id: string, time: string | undefined) => void;
+  onRemoveBlockedTime: (id: string) => void;
 }
 
 export default function TimelineView({
-  tasks, now, date, dayStart, dayEnd,
+  tasks, blockedTimes, now, date, dayStart, dayEnd,
   onStart, onStartNow, onComplete, onPause, onResume,
   onReschedule, onSetElapsed, onRemove, onMoveToOverflow,
-  onDeferToTomorrow, onSetStartTime,
+  onDeferToTomorrow, onSetStartTime, onRemoveBlockedTime,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -525,6 +527,50 @@ export default function TimelineView({
             />
           </div>
         )}
+
+        {/* ── Blocked-time slabs (behind tasks) ─── */}
+        <div
+          className="absolute top-0 bottom-0 pointer-events-none"
+          style={{ left: LABEL_W + 2, right: 4 }}
+        >
+          {blockedTimes.map(bt => {
+            const btStart = parseDayTime(date, bt.start);
+            const btEnd   = parseDayTime(date, bt.end);
+            if (btEnd <= btStart) return null;
+            const topPx    = Math.max(0, (btStart.getTime() - dayStartDate.getTime()) / 60_000 * PX_PER_MIN);
+            const heightPx = Math.max(MIN_BLOCK_H, (btEnd.getTime() - btStart.getTime()) / 60_000 * PX_PER_MIN);
+            const h = heightPx;
+            return (
+              <div
+                key={bt.id}
+                style={{ position: 'absolute', top: topPx, left: 0, right: 0, height: heightPx, zIndex: 0 }}
+                className="border border-violet-500/25 bg-violet-950/40 pointer-events-auto group"
+              >
+                {/* Left accent stripe */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-500/50" />
+                {/* Label row */}
+                <div className="absolute inset-0 left-1 px-1.5 py-0.5 flex items-start justify-between gap-1 overflow-hidden">
+                  <span className={`font-mono text-violet-300/80 truncate leading-tight ${h < 32 ? 'text-[9px]' : 'text-xs'}`}>
+                    {bt.title}
+                  </span>
+                  {h >= 24 && (
+                    <span className={`font-mono text-violet-400/60 flex-shrink-0 leading-tight ${h < 32 ? 'text-[9px]' : 'text-xs'}`}>
+                      {bt.start}–{bt.end}
+                    </span>
+                  )}
+                </div>
+                {/* Remove button (top-right, appears on hover) */}
+                <button
+                  onClick={() => onRemoveBlockedTime(bt.id)}
+                  className="absolute top-0 right-0 font-mono text-[10px] text-violet-400/0 group-hover:text-violet-400/70 hover:!text-violet-200 px-1 py-0 leading-tight transition-colors"
+                  title="Remove blocked time"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
         {/* ── Task blocks ───────────────────────── */}
         <div

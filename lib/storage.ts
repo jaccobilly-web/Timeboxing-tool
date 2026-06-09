@@ -1,4 +1,4 @@
-import type { DayState, Task } from './types';
+import type { DayState, Task, BlockedTime } from './types';
 import { DEFAULT_POMODORO_CONFIG } from './types';
 import { getTodayString, scheduleFromDayStart } from './scheduler';
 
@@ -14,6 +14,7 @@ export function createDefaultDayState(date: string): DayState {
     tasks: [],
     overflowTasks: [],
     tomorrowTasks: [],
+    blockedTimes: [],
     dayStart: '09:00',
     dayEnd: '18:00',
     pomodoroConfig: { ...DEFAULT_POMODORO_CONFIG },
@@ -113,8 +114,12 @@ export function loadOrCreate(): DayState {
     try {
       const saved: DayState = JSON.parse(raw);
       if (saved.date === today) {
-        // Back-fill missing field for older saved states
-        return { ...saved, tomorrowTasks: saved.tomorrowTasks ?? [] };
+        // Back-fill missing fields for older saved states
+        return {
+          ...saved,
+          tomorrowTasks: saved.tomorrowTasks ?? [],
+          blockedTimes: (saved as DayState & { blockedTimes?: BlockedTime[] }).blockedTimes ?? [],
+        };
       }
     } catch { /* corrupt, fall through */ }
   }

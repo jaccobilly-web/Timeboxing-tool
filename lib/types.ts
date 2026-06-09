@@ -26,11 +26,19 @@ export interface PomodoroConfig {
   cyclesBeforeLongBreak: number;
 }
 
+export interface BlockedTime {
+  id: string;
+  title: string;
+  start: string;   // HH:MM
+  end: string;     // HH:MM
+}
+
 export interface DayState {
   date: string;              // YYYY-MM-DD
   tasks: Task[];             // ordered agenda: complete | active | pending
   overflowTasks: Task[];     // "Not Today" bucket
   tomorrowTasks: Task[];     // explicitly deferred to the next calendar day
+  blockedTimes: BlockedTime[]; // meetings / blocked slots
   dayStart: string;          // HH:MM
   dayEnd: string;            // HH:MM
   pomodoroConfig: PomodoroConfig;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { DayState, Task } from '@/lib/types';
+import type { DayState, Task, BlockedTime } from '@/lib/types';
 import {
   recalculateSchedule,
   getPendingFromTime,
@@ -308,6 +308,23 @@ export function useDayState(now: Date) {
     }));
   }, []);
 
+  const addBlockedTime = useCallback((title: string, start: string, end: string) => {
+    setState(prev => ({
+      ...prev,
+      blockedTimes: [
+        ...prev.blockedTimes,
+        { id: generateId(), title: title.trim() || 'Meeting', start, end } satisfies BlockedTime,
+      ],
+    }));
+  }, []);
+
+  const removeBlockedTime = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      blockedTimes: prev.blockedTimes.filter(b => b.id !== id),
+    }));
+  }, []);
+
   return {
     state,
     addTask,
@@ -327,5 +344,7 @@ export function useDayState(now: Date) {
     updateTaskStart,
     setElapsedMinutes,
     deferToTomorrow,
+    addBlockedTime,
+    removeBlockedTime,
   };
 }
