@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { useDraggable, useDroppable, useDndMonitor } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Task, BlockedTime } from '@/lib/types';
 import {
@@ -463,6 +463,65 @@ export default function TimelineView({
     setDropRef(node);
   }, [setDropRef]);
 
+  // ── Drag-to-reschedule: live snap preview ─────────────────────────────────
+  const [dragPreview, setDragPreview] = useState<{ snapY: number; label: string } | null>(null);
+
+  // Refs so monitor callbacks always see current props without stale closures
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const dateRef = useRef(date);
+  dateRef.current = date;
+  const dayStartRef = useRef(dayStart);
+  dayStartRef.current = dayStart;
+  const onSetStartTimeRef = useRef(onSetStartTime);
+  onSetStartTimeRef.current = onSetStartTime;
+
+  function snapCompute(scheduledStart: string, deltaY: number): { snapped: number; label: string } {
+    const dsMs = parseDayTime(dateRef.current, dayStartRef.current).getTime();
+    const origMin = (new Date(scheduledStart).getTime() - dsMs) / 60_000;
+    const rawMin = origMin + deltaY / PX_PER_MIN;
+    const snapped = Math.round(Math.max(0, rawMin) / 5) * 5;
+    const d = new Date(dsMs + snapped * 60_000);
+    return { snapped, label: formatHHMM(d) };
+  }
+
+  useDndMonitor({
+    onDragStart(event) {
+      const taskId = event.active.id as string;
+      const task = tasksRef.current.find(t => t.id === taskId && t.status === 'pending');
+      if (!task?.scheduledStart) return;
+      const { snapped, label } = snapCompute(task.scheduledStart, 0);
+      setDragPreview({ snapY: snapped * PX_PER_MIN, label });
+    },
+    onDragMove(event) {
+      const taskId = event.active.id as string;
+      const task = tasksRef.current.find(t => t.id === taskId && t.status === 'pending');
+      if (!task?.scheduledStart) return;
+      const { snapped, label } = snapCompute(task.scheduledStart, event.delta.y);
+      setDragPreview({ snapY: snapped * PX_PER_MIN, label });
+    },
+    onDragEnd(event) {
+      setDragPreview(null);
+      const taskId = event.active.id as string;
+      const task = tasksRef.current.find(t => t.id === taskId && t.status === 'pending');
+      if (!task?.scheduledStart) return;
+      const dsMs = parseDayTime(dateRef.current, dayStartRef.current).getTime();
+      const origMin = (new Date(task.scheduledStart).getTime() - dsMs) / 60_000;
+      const origSnapped = Math.round(Math.max(0, origMin) / 5) * 5;
+      const { snapped, label: newLabel } = snapCompute(task.scheduledStart, event.delta.y);
+      if (snapped === origSnapped) return; // no change
+      const newDate = new Date(dsMs + snapped * 60_000);
+      const hh = String(newDate.getHours()).padStart(2, '0');
+      const mm = String(newDate.getMinutes()).padStart(2, '0');
+      // suppress TS warning — label is used in preview only
+      void newLabel;
+      onSetStartTimeRef.current(taskId, `${hh}:${mm}`);
+    },
+    onDragCancel() {
+      setDragPreview(null);
+    },
+  });
+
   return (
     <div ref={setContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
       <div
@@ -502,6 +561,27 @@ export default function TimelineView({
             </div>
           );
         })}
+
+        {/* ── Drag snap preview ─────────────────── */}
+        {dragPreview && (
+          <div
+            className="absolute left-0 right-0 z-20 pointer-events-none"
+            style={{ top: dragPreview.snapY }}
+          >
+            <div
+              className="absolute flex items-end justify-end pr-1.5"
+              style={{ width: LABEL_W, top: -9 }}
+            >
+              <span className="font-mono text-xs text-accent font-bold leading-none">
+                {dragPreview.label}
+              </span>
+            </div>
+            <div
+              className="absolute right-0 border-t-2 border-dashed border-accent/70"
+              style={{ left: LABEL_W }}
+            />
+          </div>
+        )}
 
         {/* ── Current time indicator ────────────── */}
         {nowVisible && (

@@ -65,17 +65,10 @@ export default function HomePage() {
       const activeId = active.id as string;
       const overId = over.id as string;
 
-      const isFromAgenda = state.tasks.some(t => t.id === activeId && t.status === 'pending');
+      // Agenda task repositioning is handled by TimelineView via useDndMonitor.
+      // Here we only handle overflow → agenda drops.
       const isFromOverflow = state.overflowTasks.some(t => t.id === activeId);
-
-      if (isFromAgenda) {
-        const pendingTasks = state.tasks.filter(t => t.status === 'pending');
-        const oldIndex = pendingTasks.findIndex(t => t.id === activeId);
-        const newIndex = pendingTasks.findIndex(t => t.id === overId);
-        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-          dayState.reorderAgendaTasks(oldIndex, newIndex);
-        }
-      } else if (isFromOverflow) {
+      if (isFromOverflow) {
         const pendingTasks = state.tasks.filter(t => t.status === 'pending');
         const insertIndex = pendingTasks.findIndex(t => t.id === overId);
         if (overId === 'agenda-droppable' || overId === 'overflow-droppable') {
@@ -144,7 +137,10 @@ export default function HomePage() {
       </div>
 
       <DragOverlay>
-        {activeDragTask ? <DragCard task={activeDragTask} /> : null}
+        {/* Only show floating card for overflow drags; timeline tasks show their own block moving */}
+        {activeDragTask && state.overflowTasks.some(t => t.id === activeDragTask.id)
+          ? <DragCard task={activeDragTask} />
+          : null}
       </DragOverlay>
 
       {showStats && <StatsModal onClose={() => setShowStats(false)} />}
