@@ -309,20 +309,27 @@ export function useDayState(now: Date) {
   }, []);
 
   const addBlockedTime = useCallback((title: string, start: string, end: string) => {
-    setState(prev => ({
-      ...prev,
-      blockedTimes: [
-        ...prev.blockedTimes,
-        { id: generateId(), title: title.trim() || 'Meeting', start, end } satisfies BlockedTime,
-      ],
-    }));
+    setState(prev => {
+      const now = nowRef.current;
+      const draft = {
+        ...prev,
+        blockedTimes: [
+          ...prev.blockedTimes,
+          { id: generateId(), title: title.trim() || 'Meeting', start, end } satisfies BlockedTime,
+        ],
+      };
+      const fromTime = getPendingFromTime(draft, now);
+      return recalculateSchedule(draft, fromTime);
+    });
   }, []);
 
   const removeBlockedTime = useCallback((id: string) => {
-    setState(prev => ({
-      ...prev,
-      blockedTimes: prev.blockedTimes.filter(b => b.id !== id),
-    }));
+    setState(prev => {
+      const now = nowRef.current;
+      const draft = { ...prev, blockedTimes: prev.blockedTimes.filter(b => b.id !== id) };
+      const fromTime = getPendingFromTime(draft, now);
+      return recalculateSchedule(draft, fromTime);
+    });
   }, []);
 
   return {

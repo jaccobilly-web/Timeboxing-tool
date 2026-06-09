@@ -1,4 +1,4 @@
-import type { DayState, Task } from './types';
+import type { DayState, Task, BlockedTime } from './types';
 
 // ── Parsing & Formatting ────────────────────────────────────────────────────
 
@@ -58,23 +58,53 @@ export function formatDelta(estimatedMinutes: number, actualMinutes: number): st
 
 // ── Scheduling Engine ───────────────────────────────────────────────────────
 
+interface Interval { start: Date; end: Date }
+
+/**
+ * Advance a proposed start time forward until the full [start, start+durationMs]
+ * window fits without overlapping any blocked interval.
+ * Handles chains: if skipping one meeting lands you inside another, keeps going.
+ */
+function advancePastBlocked(proposedStart: Date, durationMs: number, meetings: Interval[]): Date {
+  const sorted = [...meetings].sort((a, b) => a.start.getTime() - b.start.getTime());
+  let start = new Date(proposedStart);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const end = new Date(start.getTime() + durationMs);
+    for (const m of sorted) {
+      if (start < m.end && end > m.start) {
+        start = new Date(m.end);
+        changed = true;
+        break;
+      }
+    }
+  }
+  return start;
+}
+
+function toIntervals(blockedTimes: BlockedTime[], date: string): Interval[] {
+  return blockedTimes
+    .map(bt => ({ start: parseDayTime(date, bt.start), end: parseDayTime(date, bt.end) }))
+    .filter(m => m.end > m.start);
+}
+
 /**
  * Recalculate scheduledStart/scheduledEnd for all pending tasks.
  * Only pending tasks are rescheduled; active/complete are untouched.
+ * Tasks are placed around any blocked-time windows (meetings).
  * Tasks that push past dayEnd are moved to overflowTasks.
  *
- * @param state   Current DayState
- * @param fromTime  The wall-clock time to start scheduling pending tasks from.
- *                  Pass `now` on completion or "reschedule now"; pass the
- *                  active task's expected end when starting a task.
+ * @param state     Current DayState
+ * @param fromTime  Wall-clock time to begin scheduling pending tasks from.
  */
 export function recalculateSchedule(state: DayState, fromTime: Date): DayState {
   const dayEndTime = parseDayTime(state.date, state.dayEnd);
+  const meetings = toIntervals(state.blockedTimes ?? [], state.date);
 
   let cursor = new Date(fromTime);
 
   const newTasks: Task[] = [];
-  // Start with existing overflow; pending tasks that can't fit will be added.
   const addedToOverflow = new Set<string>(state.overflowTasks.map(t => t.id));
   const newOverflow: Task[] = [...state.overflowTasks];
   let overflowing = false;
@@ -84,7 +114,6 @@ export function recalculateSchedule(state: DayState, fromTime: Date): DayState {
       newTasks.push(task);
       continue;
     }
-    // pending task
     if (overflowing) {
       if (!addedToOverflow.has(task.id)) {
         addedToOverflow.add(task.id);
@@ -93,11 +122,11 @@ export function recalculateSchedule(state: DayState, fromTime: Date): DayState {
       continue;
     }
 
-    // manualStart pins the task to a specific wall-clock time; auto tasks use cursor
-    const scheduledStart = task.manualStart
-      ? parseDayTime(state.date, task.manualStart)
-      : new Date(cursor);
-    const scheduledEnd = new Date(scheduledStart.getTime() + task.estimatedMinutes * 60_000);
+    const durationMs = task.estimatedMinutes * 60_000;
+    // manualStart acts as a floor; still nudge past any meeting that blocks it
+    const proposed = task.manualStart ? parseDayTime(state.date, task.manualStart) : new Date(cursor);
+    const scheduledStart = advancePastBlocked(proposed, durationMs, meetings);
+    const scheduledEnd   = new Date(scheduledStart.getTime() + durationMs);
 
     if (scheduledEnd > dayEndTime) {
       overflowing = true;
@@ -110,7 +139,7 @@ export function recalculateSchedule(state: DayState, fromTime: Date): DayState {
         ...task,
         status: 'pending',
         scheduledStart: scheduledStart.toISOString(),
-        scheduledEnd: scheduledEnd.toISOString(),
+        scheduledEnd:   scheduledEnd.toISOString(),
       });
       cursor = scheduledEnd;
     }
